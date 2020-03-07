@@ -1,0 +1,133 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+### Multiple Linear Regression and Special Issues Assignment
+## Mir, Bilal
+
+```{r}
+#load libraries
+tidyverse.quiet= TRUE
+library(tidyverse)
+library(GGally)
+library(MASS)
+library(leaps)
+library(caret)
+```
+```{r}
+bike <-read.csv("hour.csv")
+```
+
+Task 0: Convert bike variables into factors
+
+```{r}
+bike <- bike %>%
+        mutate(season= as_factor(as.character(season))) %>%
+        mutate(season=fct_recode(season, "Spring" ="1", 
+                                 "Summer"= "2", 
+                                 "Fall"= "3", 
+                                 "Winter" ="4"))%>%
+    mutate(yr= as_factor(as.character(yr))) %>%
+    mutate(mnth = as_factor(as.character(mnth))) %>%
+    mutate(hr= as_factor(as.character(hr))) %>%
+    
+  mutate(holiday=as_factor(as.character(holiday))) %>%
+    mutate(holiday= fct_recode(holiday, "NotHoliday" = "0", 
+                               "Holiday"="1")) %>%
+  
+  mutate(workingday= as_factor(as.character(workingday))) %>%
+    mutate(workingday=fct_recode(workingday, "NotWorkingDay"= "0",
+                                 "WorkingDay"= "1")) %>%
+  
+  mutate(weathersit= as_factor(as.character(weathersit))) %>%
+    mutate(weathersit= fct_recode(weathersit,"NoPrecip"= "1",
+                                  "Misty"="2", 
+                                  "LightPrecip"="3", 
+                                  "HeavyPrecip"="4"))%>%
+  
+  mutate(weekday= as_factor(as.character(weekday))) %>%
+    mutate(weekday= fct_recode(weekday, "Sunday"="0", "Monday"="1", "Tuesday"="2", "Wednesday"="3", "Thursday"="4", "Friday"="5", "Saturday"="6"))
+
+```
+Task 1: Split the data 70/30
+```{r}
+#verifying clean data
+colSums(is.na(bike))
+glimpse(bike)
+
+bike <- bike %>%
+dplyr::select(-c(instant, dteday, registered, casual))
+glimpse(bike)
+
+```
+
+```{r}
+set.seed(1234)
+train.rows = createDataPartition(y=bike$count, p=.7 , list= FALSE)
+train = bike[train.rows,]
+test=bike[-train.rows,]
+```
+Task 2: count rows of training and test data
+
+```{r}
+paste0("Number of row observations in training  = ", nrow(train) )
+paste0("Number of row observations in test  = ", nrow(test) )
+
+```
+
+
+
+```{r}
+ggcorr(bike)
+```
+Task 3: Build a linear regression model using training set to predict "count"
+```{r}
+model1 <- lm(count~ season + mnth + hr + holiday + weekday+ temp + weathersit , data=train)
+print(summary(model1))
+
+```
+
+Comment: 
+
+There are several negative corelations in the data set which is skewing the median towards negative. however, the Adjusted R-Squared = .62 which is moderately acceptable for this dataset. a higher percentage is more diserable which could not be achieved even after minor data cleaning. 
+
+Task 4:
+```{r}
+Predict_trains <- predict(model1,train)
+head(Predict_trains)
+```
+As expected we several negative predictions in the dataset. we can see the count the count usually reduces and and remains far below 3Q. . 
+
+Task 5:
+```{r}
+Predict_test <- predict(model1,test)
+head(Predict_test)
+```
+
+As expected we have few positive and negative predictions in the dataset. we can see the count could fall slightly but outside that, the count increases to 3Q. the test dataset shows much better count numbers as compared to prediction. 
+
+Task 6:
+```{r}
+SSE <- sum((test$count - Predict_test)^2)
+SST <- sum((test$count-mean(test$count))^2)
+ paste0("the manually calculated R-sqaured = " , 1- SSE/SST )         
+```
+
+we see a decent co-relations but the data is skewed towards a negative prediction. the manully calculated R is similar to the model. 
+
+Task 7:
+
+The training/testing split is faster way to get quick results however, the K-fold cross validation allows more accuracy by splitting the data into small chunks vs randomly selecting the varaiables in training/testing. the reproducability increases in K-flod vs randon selection. however, k-fold could leads towards over fitting the data by increasing too may fits. 
+
+```{r}
+ctrl= trainControl(method= "cv", number =10)
+set.seed(1234)
+modCV=train(count~ season + mnth + hr + holiday + weekday+ temp + weathersit , method ="lm", trControl=ctrl, metric="Rsquared", data=train)
+```
+
+
+```{r}
+summary(modCV)
+```
+
